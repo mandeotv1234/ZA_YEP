@@ -33,7 +33,7 @@ function App() {
   useEffect(() => {
     if (domain) {
       fetchState();
-      const interval = setInterval(fetchState, 2000); // Poll every 2s
+      const interval = setInterval(fetchState, 5000); // Poll every 5s
       return () => clearInterval(interval);
     } else {
       setLoading(false);
