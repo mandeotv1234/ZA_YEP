@@ -15,6 +15,7 @@ export const Voting: React.FC<VotingProps> = ({ domain, startTime, durationMs, o
   const [timeLeft, setTimeLeft] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -34,11 +35,21 @@ export const Voting: React.FC<VotingProps> = ({ domain, startTime, durationMs, o
       setSubmitting(false);
     });
 
+    // Listen for vote success
+    socketService.onVoteSuccess(() => {
+      setSubmitting(false);
+      setSubmitted(true);
+      setTimeout(() => {
+        onVoteSuccess();
+      }, 1000);
+    });
+
     return () => {
       clearInterval(interval);
       socketService.removeListener('voteError');
+      socketService.removeListener('voteSuccess');
     };
-  }, [startTime, durationMs, onTimeUp]);
+  }, [startTime, durationMs, onVoteSuccess, onTimeUp]);
 
   const formatTime = (ms: number) => {
     const seconds = Math.floor((ms / 1000) % 60);
@@ -56,12 +67,6 @@ export const Voting: React.FC<VotingProps> = ({ domain, startTime, durationMs, o
     setError('');
     setSubmitting(true);
     socketService.submitVote(domain, mrName, mrsName);
-
-    // Listen for vote success
-    socketService.onVoteSuccess(() => {
-      setSubmitting(false);
-      onVoteSuccess();
-    });
   };
 
   return (
@@ -74,7 +79,7 @@ export const Voting: React.FC<VotingProps> = ({ domain, startTime, durationMs, o
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
             </svg>
           </div>
-          <h1 className="text-lg font-bold">Zalo YEP 2024</h1>
+          <h1 className="text-lg font-bold">Zalo YEP 2025</h1>
         </div>
         <div className="bg-white/20 px-3 py-1 rounded-full text-sm font-medium">
           {domain}
@@ -131,10 +136,20 @@ export const Voting: React.FC<VotingProps> = ({ domain, startTime, durationMs, o
 
           <button
             type="submit"
-            disabled={submitting || timeLeft <= 0}
-            className="w-full bg-zalo-blue text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-200 hover:bg-blue-600 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-lg uppercase tracking-wide mt-4"
+            disabled={submitting || timeLeft <= 0 || submitted}
+            className="w-full relative bg-zalo-blue text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-200 hover:bg-blue-600 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-lg uppercase tracking-wide mt-4"
           >
-            {submitting ? 'Đang gửi...' : 'Xác nhận bình chọn'}
+            <div className="flex items-center justify-center gap-2">
+              {submitting && (
+                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              )}
+              <span>
+                {submitted ? '✓ Đã bình chọn' : submitting ? 'Đang gửi...' : 'Xác nhận bình chọn'}
+              </span>
+            </div>
           </button>
           
           <p className="text-center text-xs text-gray-400 font-medium">

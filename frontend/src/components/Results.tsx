@@ -77,7 +77,7 @@ export const Results: React.FC = () => {
         />
         
         <div className="text-center text-white/60 text-sm mt-10">
-          Zalo Year End Party 2024
+          Zalo Year End Party 2025
         </div>
       </div>
     </div>

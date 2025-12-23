@@ -20,7 +20,7 @@ const Layout: React.FC<LayoutProps> = ({ children, title, onLogout, currentUser 
               <path d="M14 26L22 26" stroke="#0068FF" strokeWidth="4" strokeLinecap="round"/>
             </svg>
           </div>
-          <h1 className="font-bold text-lg tracking-tight">Zalo YEP 2024</h1>
+          <h1 className="font-bold text-lg tracking-tight">Zalo YEP 2025</h1>
         </div>
         {onLogout && (
           <button 
@@ -38,7 +38,7 @@ const Layout: React.FC<LayoutProps> = ({ children, title, onLogout, currentUser 
       </main>
 
       <footer className="w-full max-w-md p-4 text-center text-gray-400 text-xs">
-        &copy; 2024 Zalo Corporation. Year End Party Edition.
+        &copy; 2025 Zalo Corporation. Year End Party Edition.
       </footer>
     </div>
   );
