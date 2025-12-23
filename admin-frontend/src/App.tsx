@@ -1,57 +1,67 @@
 
 import React, { useState, useEffect } from 'react';
-import { checkGameState, startGame, resetGame, getResults } from './services/api';
+import socketService from './services/socket';
 import './index.css'
 
 function App() {
   const [gameState, setGameState] = useState<any>(null);
   const [results, setResults] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-
-  const fetchState = async () => {
-    try {
-      const state = await checkGameState();
-      setGameState(state);
-      if (state.status === 'FINISHED') {
-        const res = await getResults();
-        setResults(res);
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  const [voteCount, setVoteCount] = useState(0);
 
   useEffect(() => {
-    fetchState();
-    const interval = setInterval(fetchState, 5000);
-    return () => clearInterval(interval);
+    // Connect to WebSocket as admin
+    socketService.connect();
+    socketService.adminConnected();
+
+    // Listen for game state changes
+    socketService.onGameStateChanged((state) => {
+      setGameState(prev => ({
+        ...prev,
+        ...state
+      }));
+      setVoteCount(state.voteCount);
+    });
+
+    // Listen for admin game state
+    socketService.onAdminGameState((data) => {
+      setGameState(data);
+      setVoteCount(data.voteCount);
+    });
+
+    // Listen for game reset
+    socketService.onGameReset(() => {
+      setResults(null);
+      setVoteCount(0);
+    });
+
+    // Listen for results
+    socketService.onResultsReady((data) => {
+      setResults(data);
+    });
+
+    return () => {
+      socketService.removeAllListeners();
+    };
   }, []);
 
-  const handleStart = async () => {
+  const handleStart = () => {
     if (!confirm('Bạn có chắc chắn muốn bắt đầu game?')) return;
     setLoading(true);
-    try {
-      await startGame();
-      await fetchState();
-    } catch (error) {
-      alert('Lỗi khi bắt đầu game');
-    } finally {
-      setLoading(false);
-    }
+    socketService.startGame();
+    // Reset loading after a short delay
+    setTimeout(() => setLoading(false), 1000);
   };
 
-  const handleReset = async () => {
+  const handleReset = () => {
     if (!confirm('CẢNH BÁO: Hành động này sẽ xóa toàn bộ dữ liệu bình chọn. Bạn có chắc chắn?')) return;
     setLoading(true);
-    try {
-      await resetGame();
-      await fetchState();
-      setResults(null);
-    } catch (error) {
-      alert('Lỗi khi reset game');
-    } finally {
-      setLoading(false);
-    }
+    socketService.resetGame();
+    setTimeout(() => setLoading(false), 1000);
+  };
+
+  const handleShowResults = () => {
+    socketService.getResults();
   };
 
   if (!gameState) return <div className="p-8 text-center">Loading Admin Dashboard...</div>;
@@ -96,7 +106,7 @@ function App() {
                   <button 
                     onClick={handleStart}
                     disabled={loading}
-                    className="w-full py-4 bg-zalo-blue hover:bg-blue-600 text-white rounded-xl font-bold text-lg transition-all shadow-lg shadow-blue-200 active:scale-95"
+                    className="w-full py-4 bg-zalo-blue hover:bg-blue-600 text-white rounded-xl font-bold text-lg transition-all shadow-lg shadow-blue-200 active:scale-95 disabled:opacity-50"
                   >
                     BẮT ĐẦU GAME 🚀
                   </button>
@@ -107,13 +117,19 @@ function App() {
                 <div className="text-center p-8 bg-green-50 rounded-2xl border border-green-100">
                   <p className="text-green-800 font-medium mb-2 uppercase tracking-wide">Thời gian còn lại</p>
                   <Countdown target={gameState.startTime + gameState.durationMs} />
-                  <p className="text-sm text-green-600 mt-4 animate-pulse">Đang nhận phiếu bầu...</p>
+                  <p className="text-sm text-green-600 mt-4 animate-pulse">Đang nhận phiếu bầu... ({voteCount} phiếu)</p>
                 </div>
               )}
 
               {gameState.status === 'FINISHED' && (
                 <div className="text-center p-6 bg-gray-50 rounded-2xl border border-gray-200">
-                  <p className="text-gray-500 font-medium">Bình chọn đã kết thúc</p>
+                  <p className="text-gray-700 font-medium mb-4">Bình chọn đã kết thúc ({voteCount} phiếu)</p>
+                  <button 
+                    onClick={handleShowResults}
+                    className="w-full py-3 bg-zalo-blue text-white rounded-xl font-bold hover:bg-blue-600 transition-colors"
+                  >
+                    Xem Kết Quả
+                  </button>
                 </div>
               )}
 
@@ -121,7 +137,7 @@ function App() {
                 <button 
                   onClick={handleReset}
                   disabled={loading}
-                  className="w-full py-3 bg-white border-2 border-red-100 hover:bg-red-50 text-red-500 rounded-xl font-bold transition-colors flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-white border-2 border-red-100 hover:bg-red-50 text-red-500 rounded-xl font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   <span>🗑️</span> Reset Game (Xóa dữ liệu)
                 </button>
@@ -135,6 +151,12 @@ function App() {
               📊 Thống kê
             </h2>
             <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-xl">
+                <p className="text-gray-500 text-sm mb-1">Số phiếu bầu</p>
+                <p className="font-mono font-bold text-2xl text-zalo-blue">
+                  {voteCount}
+                </p>
+              </div>
               <div className="bg-gray-50 p-4 rounded-xl">
                 <p className="text-gray-500 text-sm mb-1">Thời gian bắt đầu</p>
                 <p className="font-mono font-medium text-gray-800">
@@ -156,7 +178,7 @@ function App() {
           <div className="bg-white p-8 rounded-3xl shadow-lg border border-blue-100 animate-in fade-in slide-in-from-bottom-4">
             <div className="text-center mb-10">
               <h2 className="text-3xl font-black text-zalo-blue mb-2">🏆 KẾT QUẢ CHÍNH THỨC</h2>
-              <p className="text-gray-500">Danh sách những người được bình chọn nhiều nhất</p>
+              <p className="text-gray-500">Tổng số phiếu: {results.totalVotes}</p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

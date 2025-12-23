@@ -4,7 +4,7 @@ import { Login } from './components/Login';
 import { Lobby } from './components/Lobby';
 import { Voting } from './components/Voting';
 import { Results } from './components/Results';
-import { checkGameState } from './services/api';
+import socketService from './services/socket';
 import './index.css'
 
 
@@ -18,26 +18,34 @@ function App() {
     setDomain(d);
   };
 
-  const fetchState = async () => {
-    if (!domain) return;
-    try {
-      const state = await checkGameState(domain);
-      setGameState(state);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    if (domain) {
-      fetchState();
-      const interval = setInterval(fetchState, 5000); // Poll every 5s
-      return () => clearInterval(interval);
-    } else {
+    if (!domain) {
       setLoading(false);
+      return;
     }
+
+    // Connect to WebSocket and login
+    socketService.connect();
+    socketService.userLogin(domain);
+
+    // Listen for game state changes
+    socketService.onGameStateChanged((state) => {
+      setGameState(prev => ({
+        ...prev,
+        ...state
+      }));
+    });
+
+    // Listen for user login confirmation
+    socketService.onUserLoginSuccess((data) => {
+      setGameState(data.gameState);
+      setLoading(false);
+    });
+
+    return () => {
+      socketService.removeListener('gameStateChanged');
+      socketService.removeListener('userLoginSuccess');
+    };
   }, [domain]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white text-zalo-blue">Loading...</div>;
@@ -53,7 +61,7 @@ function App() {
   }
 
   if (gameState.status === 'IDLE') {
-    return <Lobby onStart={fetchState} />;
+    return <Lobby onStart={() => {}} />;
   }
 
   if (gameState.status === 'VOTING') {
@@ -75,8 +83,8 @@ function App() {
         domain={domain} 
         startTime={gameState.startTime} 
         durationMs={gameState.durationMs}
-        onVoteSuccess={fetchState}
-        onTimeUp={fetchState}
+        onVoteSuccess={() => {}}
+        onTimeUp={() => {}}
       />
     );
   }

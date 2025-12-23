@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { submitVote } from '../services/api';
+import socketService from '../services/socket';
 
 interface VotingProps {
   domain: string;
@@ -14,6 +14,7 @@ export const Voting: React.FC<VotingProps> = ({ domain, startTime, durationMs, o
   const [mrsName, setMrsName] = useState('');
   const [timeLeft, setTimeLeft] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -27,7 +28,16 @@ export const Voting: React.FC<VotingProps> = ({ domain, startTime, durationMs, o
       }
     }, 1000);
 
-    return () => clearInterval(interval);
+    // Listen for vote errors
+    socketService.onVoteError((err) => {
+      setError(err.message);
+      setSubmitting(false);
+    });
+
+    return () => {
+      clearInterval(interval);
+      socketService.removeListener('voteError');
+    };
   }, [startTime, durationMs, onTimeUp]);
 
   const formatTime = (ms: number) => {
@@ -36,19 +46,22 @@ export const Voting: React.FC<VotingProps> = ({ domain, startTime, durationMs, o
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!mrName || !mrsName) return;
-
-    setSubmitting(true);
-    try {
-      await submitVote(domain, mrName, mrsName);
-      onVoteSuccess();
-    } catch (error) {
-      alert('Có lỗi xảy ra hoặc bạn đã bình chọn rồi!');
-    } finally {
-      setSubmitting(false);
+    if (!mrName || !mrsName) {
+      setError('Vui lòng nhập tên đầy đủ');
+      return;
     }
+
+    setError('');
+    setSubmitting(true);
+    socketService.submitVote(domain, mrName, mrsName);
+
+    // Listen for vote success
+    socketService.onVoteSuccess(() => {
+      setSubmitting(false);
+      onVoteSuccess();
+    });
   };
 
   return (
@@ -77,11 +90,17 @@ export const Voting: React.FC<VotingProps> = ({ domain, startTime, durationMs, o
           </div>
         </div>
 
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm font-medium">
+            {error}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Mr Input */}
           <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
             <div className="flex items-center gap-2 mb-4">
-              <span className="text-2xl">�</span>
+              <span className="text-2xl">👨</span>
               <h3 className="font-black text-gray-900 uppercase tracking-tight">Mr. Impressive</h3>
             </div>
             <input
@@ -97,7 +116,7 @@ export const Voting: React.FC<VotingProps> = ({ domain, startTime, durationMs, o
           {/* Mrs Input */}
           <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
             <div className="flex items-center gap-2 mb-4">
-              <span className="text-2xl">�</span>
+              <span className="text-2xl">👩</span>
               <h3 className="font-black text-pink-500 uppercase tracking-tight">Mrs. Impressive</h3>
             </div>
             <input
@@ -126,4 +145,3 @@ export const Voting: React.FC<VotingProps> = ({ domain, startTime, durationMs, o
     </div>
   );
 };
-

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
-import { getResults } from '../services/api';
+import socketService from '../services/socket';
 import { motion } from 'framer-motion';
 
 export const Results: React.FC = () => {
@@ -9,18 +9,17 @@ export const Results: React.FC = () => {
   const [results, setResults] = useState<{ mr: any[], mrs: any[] } | null>(null);
 
   useEffect(() => {
-    const fetchResults = async () => {
-      try {
-        const data = await getResults();
-        setResults(data);
-      } catch (error) {
-        console.error(error);
-      }
+    // Request results via WebSocket
+    socketService.getResults();
+
+    // Listen for results
+    socketService.onResultsReady((data) => {
+      setResults(data);
+    });
+
+    return () => {
+      socketService.removeListener('resultsReady');
     };
-    fetchResults();
-    // Poll for updates just in case
-    const interval = setInterval(fetchResults, 5000);
-    return () => clearInterval(interval);
   }, []);
 
   if (!results) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
